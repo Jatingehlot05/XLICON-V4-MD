@@ -1,11 +1,12 @@
 require('./settings');
 const fs = require('fs');
 const pino = require('pino');
+const { color } = require('./lib/color');
 const path = require('path');
 const axios = require('axios');
 const chalk = require('chalk');
-const figlet = require('figlet');
 const readline = require('readline');
+const { File } = require('megajs');
 const FileType = require('file-type');
 const { exec } = require('child_process');
 const { Boom } = require('@hapi/boom');
@@ -51,13 +52,50 @@ const { GroupUpdate, GroupParticipantsUpdate, MessagesUpsert, Solving } = requir
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif');
 const { isUrl, generateMessageTag, getBuffer, getSizeMedia, fetchJson, await, sleep } = require('./lib/function');
 
-console.log(chalk.cyan(figlet.textSync("XLICON-V4", {
-    font: 'DOS Rebel',
-    horizontalLayout: 'default',
-    vertivalLayout: 'default',
-    width: 60,
-    whitespaceBreak: false
-})));
+
+const sessionDir = path.join(__dirname, 'session');
+const credsPath = path.join(sessionDir, 'creds.json');
+
+async function sessionLoader() {
+  try {
+    // Ensure session directory exists
+    await fs.promises.mkdir(sessionDir, { recursive: true });
+
+    if (!fs.existsSync(credsPath)) {
+      if (!global.SESSION_ID) {
+      return console.log(color(`Session id and creds.json not found!!\n\nWait to enter your number`, 'red'));
+      }
+
+      const sessionData = global.SESSION_ID.split("XLICON-V4~")[1];
+      const filer = File.fromURL(`https://mega.nz/file/${sessionData}`);
+
+      await new Promise((resolve, reject) => {
+        filer.download((err, data) => {
+          if (err) reject(err);
+          resolve(data);
+        });
+      })
+      .then(async (data) => {
+        await fs.promises.writeFile(credsPath, data);
+        console.log(color(`Session downloaded successfully, proceeding to start...`, 'green'));
+        await startXliconBot();
+      });
+    }
+  } catch (error) {
+    console.error('Error retrieving session:', error);
+  }
+}
+
+console.log(
+  chalk.cyan(`
+██╗  ██╗██╗      ██████╗██╗ ██████╗ ███╗   ██╗      ██╗   ██╗██╗  ██╗
+╚██╗██╔╝██║     ██╔════╝██║██╔═══██╗████╗  ██║      ██║   ██║██║  ██║
+ ╚███╔╝ ██║     ██║     ██║██║   ██║██╔██╗ ██║█████╗██║   ██║███████║
+ ██╔██╗ ██║     ██║     ██║██║   ██║██║╚██╗██║╚════╝╚██╗ ██╔╝╚════██║
+██╔╝ ██╗███████╗╚██████╗██║╚██████╔╝██║ ╚████║       ╚████╔╝      ██║
+╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝        ╚═══╝       ╚═╝
+  `)
+);
 
 console.log(chalk.white.bold(`${chalk.gray.bold("📃  Information :")}         
 ✉️  Script : XLICON-V4-MD
@@ -65,7 +103,7 @@ console.log(chalk.white.bold(`${chalk.gray.bold("📃  Information :")}
 ✉️  Gmail : salmansheikh2500@gmail.com
 ✉️  Instagram : ahmmikun
 
-${chalk.green.bold("Powered By XLICON BOTZ")}\n`));
+${chalk.green.bold("Ｐｏｗｅｒｅｄ Ｂｙ ＸＬＩＣＯＮ ＢＯＴＺ")}\n`));
 
 async function startXliconBot() {
     //------------------------------------------------------
@@ -101,7 +139,7 @@ async function startXliconBot() {
         if (useMobile) throw new Error('Cannot use pairing code with mobile API');
 
         let phoneNumber;
-        phoneNumber = await question('Please enter your number starting with 92 :\n');
+        phoneNumber = await question('Please enter your number starting with country code like 92:\n');
         phoneNumber = phoneNumber.trim();
 
         setTimeout(async () => {
@@ -182,12 +220,29 @@ async function startXliconBot() {
     XliconBotInc.ev.on('messages.upsert', async (message) => {
         await MessagesUpsert(XliconBotInc, message, store);
     });
-
     return XliconBotInc;
 }
 
-startXliconBot();
-
+async function initStart() {
+    if (fs.existsSync(credsPath)) {
+        console.log(color("Creds.json exists, proceeding to start...", 'yellow'));
+await startXliconBot();
+} else {
+         const sessionCheck = await sessionLoader();
+        if (sessionCheck) {
+            console.log("Session downloaded successfully, proceeding to start... .");
+await startXliconBot();
+    } else {
+     if (!fs.existsSync(credsPath)) {
+    if(!global.SESSION_ID) {
+            console.log(color("Please wait for a few seconds to enter your number!", 'red'));
+await startXliconBot();
+        }
+    }
+  }
+ }
+} 
+initStart();
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
     fs.unwatchFile(file);
